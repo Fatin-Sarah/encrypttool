@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
+import ascon
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import dh
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -14,7 +15,7 @@ import socket
 import threading
 import queue
 import struct
-import ascon
+from ascon import ascon_encrypt, ascon_decrypt
 
 class EncryptionTool:
     def __init__(self, root):
