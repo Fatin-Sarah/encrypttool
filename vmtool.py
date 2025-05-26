@@ -138,8 +138,8 @@ class EncryptionTool:
         # Configure grid weights
         conn_frame.columnconfigure(1, weight=1)
         enc_frame.columnconfigure(1, weight=1)
-
-     def start_server(self):
+    
+    def start_server(self):
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.bind(('0.0.0.0', self.port))  # Bind to all interfaces
