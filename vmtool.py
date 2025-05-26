@@ -22,7 +22,8 @@ class EncryptionTool:
         self.root = root
         self.root.title("VM Encryption Tool with Latency Monitoring")
         self.root.geometry("900x700")
-        
+        self.is_server = False
+
         # Encryption settings
         self.encryption_methods = ["AES128", "ASCON", "ChaCha20"]
         self.selected_method = tk.StringVar(value="AES128")
@@ -77,9 +78,16 @@ class EncryptionTool:
         ttk.Label(conn_frame, text="Port:").grid(row=2, column=0, sticky=tk.W)
         ttk.Label(conn_frame, text=str(self.port)).grid(row=2, column=1, sticky=tk.W)
         
+        self.server_mode = tk.BooleanVar()
+        ttk.Checkbutton(conn_frame, text="Act as Server", variable=self.server_mode).grid(row=3, column=0, sticky=tk.W)
+    
+        # Connect/Disconnect button
         self.connect_btn = ttk.Button(conn_frame, text="Connect", command=self.toggle_connection)
-        self.connect_btn.grid(row=3, column=0, columnspan=2, pady=5)
-        
+        self.connect_btn.grid(row=3, column=1, sticky=tk.EW, padx=5)
+    
+        # Configure grid
+        conn_frame.columnconfigure(1, weight=1)
+    
         # Key Exchange Frame
         key_frame = ttk.LabelFrame(main_frame, text="Key Exchange", padding="10")
         key_frame.pack(fill=tk.X, pady=5)
@@ -130,6 +138,29 @@ class EncryptionTool:
         # Configure grid weights
         conn_frame.columnconfigure(1, weight=1)
         enc_frame.columnconfigure(1, weight=1)
+    
+    def accept_connections(self):
+        try:
+            while self.connection_status:
+                conn, addr = self.socket.accept()
+                self.display_message(f"Connection from: {addr}")
+                self.socket = conn  # Use the new connection socket
+                
+                # Start receive thread for this connection
+                threading.Thread(target=self.receive_data, daemon=True).start()
+        except Exception as e:
+            if self.connection_status:  # Only show error if didn't intentionally disconnect
+                self.display_message(f"Server error: {str(e)}")
+            self.disconnect()
+
+    def toggle_connection(self):
+        if self.connection_status:
+            self.disconnect()
+        else:
+            if self.server_mode.get():  # Check if in server mode
+                self.start_server()
+            else:
+                self.connect()
 
     def perform_key_exchange(self):
         if not self.connection_status:
