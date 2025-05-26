@@ -152,7 +152,7 @@ class EncryptionTool:
             threading.Thread(target=self.accept_connections, daemon=True).start()
         except Exception as e:
             messagebox.showerror("Server Error", f"Failed to start server: {str(e)}")
-            
+
     def accept_connections(self):
         try:
             while self.connection_status:
@@ -163,7 +163,7 @@ class EncryptionTool:
                 # Start receive thread for this connection
                 threading.Thread(target=self.receive_data, daemon=True).start()
         except Exception as e:
-            if self.connection_status:  # Only show error if didn't intentionally disconnect
+            if self.connection_status:  # Only show error if we didn't intentionally disconnect
                 self.display_message(f"Server error: {str(e)}")
             self.disconnect()
 
@@ -174,7 +174,7 @@ class EncryptionTool:
             if self.server_mode.get():  # Check if in server mode
                 self.start_server()
             else:
-                self.connect()
+                self.connect()  # Existing client connection method
 
     def perform_key_exchange(self):
         if not self.connection_status:
