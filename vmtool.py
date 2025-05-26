@@ -138,7 +138,21 @@ class EncryptionTool:
         # Configure grid weights
         conn_frame.columnconfigure(1, weight=1)
         enc_frame.columnconfigure(1, weight=1)
-    
+
+     def start_server(self):
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.bind(('0.0.0.0', self.port))  # Bind to all interfaces
+            self.socket.listen(1)
+            self.display_message(f"Server listening on port {self.port}...")
+            self.connection_status = True
+            self.connect_btn.config(text="Disconnect")
+            
+            # Start thread to accept connections
+            threading.Thread(target=self.accept_connections, daemon=True).start()
+        except Exception as e:
+            messagebox.showerror("Server Error", f"Failed to start server: {str(e)}")
+            
     def accept_connections(self):
         try:
             while self.connection_status:
