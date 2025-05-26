@@ -142,9 +142,10 @@ class EncryptionTool:
     def start_server(self):
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.bind(('0.0.0.0', self.port))  # Bind to all interfaces
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow reuse
+            self.socket.bind(('0.0.0.0', self.port))  # Force bind to all interfaces
             self.socket.listen(1)
-            print(f"[DEBUG] Server started on {self.host_ip}:{self.port}")  # Add this line
+            print(f"[DEBUG] Server bound to 0.0.0.0:{self.port}")
             self.display_message(f"Server listening on port {self.port}...")
             self.connection_status = True
             self.connect_btn.config(text="Disconnect")
