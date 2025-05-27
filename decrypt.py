@@ -117,17 +117,38 @@ class EncryptionClient:
             self.connect()
 
     def connect(self):
-        try:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.connect((self.server_ip.get(), self.port))
-            self.connection_status = True
-            self.connect_btn.config(text="Disconnect")
-            self.log_message(f"Connected to {self.server_ip.get()}:{self.port}")
-            
-            # Perform key exchange
-            threading.Thread(target=self.perform_key_exchange, daemon=True).start()
-        except Exception as e:
-            self.log_message(f"Connection failed: {str(e)}")
+    try:
+        # Force new socket creation
+        if self.socket:
+            self.socket.close()
+        
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.settimeout(5)  # Essential for Windows
+        
+        # Debug output
+        target_ip = self.remote_ip.get()
+        print(f"[CLIENT] Attempting connection to {target_ip}:{self.port}")
+        print(f"[CLIENT] Local IP: {socket.gethostbyname(socket.gethostname())}")
+        
+        # Windows-specific TCP stack tuning
+        self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        self.socket.connect((target_ip, self.port))
+        
+        print("[CLIENT] Connection established!")
+        return True
+        
+    except socket.timeout:
+        print("[CLIENT ERROR] Connection timed out - check firewall/network")
+    except ConnectionRefusedError:
+        print("[CLIENT ERROR] Server refused connection - verify server is running")
+    except Exception as e:
+        print(f"[CLIENT ERROR] {str(e)}")
+        # Windows error details
+        if hasattr(e, 'winerror'):
+            import ctypes
+            err_msg = ctypes.FormatError(e.winerror)
+            print(f"Windows API Error: {err_msg}")
+    return False
 
     def perform_key_exchange(self):
         try:
