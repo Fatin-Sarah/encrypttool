@@ -106,34 +106,34 @@ class EncryptionServer:
         enc_frame.columnconfigure(1, weight=1)
 
     def start_server(self):
-    try:
-        # Force clean socket state
-        if self.socket:
-            self.socket.close()
-            time.sleep(1)  # Allow OS to release port
-
-        # Create new socket with Windows-specific options
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)  # Windows-specific
-        
-        # Bind to all interfaces with timeout
-        self.socket.bind(('0.0.0.0', self.port))
-        self.socket.settimeout(10)  # Prevent hanging
-        self.socket.listen(1)
-        
-        print(f"[SERVER] Bound to ALL interfaces on port {self.port}")
-        print(f"[SERVER] Accessible at these IPs:")
-        print(f"- Localhost: 127.0.0.1:{self.port}")
-        print(f"- Network: {socket.gethostbyname(socket.gethostname())}:{self.port}")
-        
-    except Exception as e:
-        print(f"[SERVER ERROR] {str(e)}")
-        # Windows-specific error details
-        if hasattr(e, 'winerror'):
-            import winerror
-            print(f"Windows Error Code: {e.winerror}")
-            print(f"Meaning: {winerror.ErrorMessages.get(e.winerror, 'Unknown')}")
+        try:
+            # Force clean socket state
+            if self.socket:
+                self.socket.close()
+                time.sleep(1)  # Allow OS to release port
+    
+            # Create new socket with Windows-specific options
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)  # Windows-specific
+            
+            # Bind to all interfaces with timeout
+            self.socket.bind(('0.0.0.0', self.port))
+            self.socket.settimeout(10)  # Prevent hanging
+            self.socket.listen(1)
+            
+            print(f"[SERVER] Bound to ALL interfaces on port {self.port}")
+            print(f"[SERVER] Accessible at these IPs:")
+            print(f"- Localhost: 127.0.0.1:{self.port}")
+            print(f"- Network: {socket.gethostbyname(socket.gethostname())}:{self.port}")
+            
+        except Exception as e:
+            print(f"[SERVER ERROR] {str(e)}")
+            # Windows-specific error details
+            if hasattr(e, 'winerror'):
+                import winerror
+                print(f"Windows Error Code: {e.winerror}")
+                print(f"Meaning: {winerror.ErrorMessages.get(e.winerror, 'Unknown')}")
 
     def accept_connections(self):
         try:
