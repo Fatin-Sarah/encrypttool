@@ -28,7 +28,7 @@ class EncryptionClient:
         self.shared_key = None
         
         # Network setup
-        self.server_ip = tk.StringVar(value="127.0.0.1")
+        self.server_ip = tk.StringVar(value="127.18.86.67")
         self.port = 5000
         self.socket = None
         self.connection_status = False
@@ -133,29 +133,51 @@ class EncryptionClient:
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             #self.socket.connect((target_ip, self.port))
             self.socket.connect((self.server_ip.get(), self.port))
+
+            #Connection Verification 
+            print("[DEBUG] TCP handshake completed")
+            self.connection_status = True
+            self.connect_btn.config(text="Disconnect")
+            self.log_message(f"Connected to {target_ip}:{self.port}")
             
-            print("[CLIENT] Connection established!")
+            # Start key exchange in thread
+            threading.Thread(target=self.perform_key_exchange, daemon=True).start()
             return True
             
         except socket.timeout:
-            print("[CLIENT ERROR] Connection timed out - check firewall/network")
+            self.log_message("[ERROR] Connection timeout - server not responding")
         except ConnectionRefusedError:
-            print("[CLIENT ERROR] Server refused connection - verify server is running")
+            self.log_message("[ERROR] Server refused connection (verify server is running)")
         except Exception as e:
-            print(f"[CLIENT ERROR] {str(e)}")
-            # Windows error details
+            #ERROR REPORTING
+            error_msg = f"[ERROR] Connection failed: {str(e)}"
             if hasattr(e, 'winerror'):
                 import ctypes
-                err_msg = ctypes.FormatError(e.winerror)
-                print(f"Windows API Error: {err_msg}")
+                error_msg += f"\nWindows API Error: {ctypes.FormatError(e.winerror)}"
+            self.log_message(error_msg)
         return False
 
     def perform_key_exchange(self):
         try:
+            #KEY EXCHANGE DEBUG
+            self.log_message("[DEBUG] Starting key exchange...")
+            
             # Receive server's public key
             length_data = self.recvall(4)
+            if not length_data:
+                self.log_message("[ERROR] No key length received")
+                return
+                
             key_length = struct.unpack('!I', length_data)[0]
+            self.log_message(f"[DEBUG] Expecting key of length: {key_length} bytes")
+            
             remote_public_key_bytes = self.recvall(key_length)
+            if not remote_public_key_bytes:
+                self.log_message("[ERROR] Failed to receive public key")
+                return
+                
+            #KEY VERIFICATION DEBUG
+            self.log_message(f"[DEBUG] Received key (first 10 bytes): {remote_public_key_bytes[:10].hex()}...")
             
             remote_public_key = serialization.load_pem_public_key(
                 remote_public_key_bytes,
@@ -180,9 +202,12 @@ class EncryptionClient:
                 backend=default_backend()
             ).derive(shared_secret)
             
+            #KEY VERIFICATION
+            self.log_message(f"[DEBUG] Shared key established: {self.shared_key.hex()[:10]}...")
             self.log_message("Key exchange completed!")
+            
         except Exception as e:
-            self.log_message(f"Key exchange failed: {str(e)}")
+            self.log_message(f"[CRITICAL] Key exchange failed: {str(e)}")
 
     def send_data(self, data):
         try:
