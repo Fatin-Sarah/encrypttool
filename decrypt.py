@@ -125,13 +125,14 @@ class EncryptionClient:
             self.socket.settimeout(5)  # Essential for Windows
             
             # Debug output
-            target_ip = self.remote_ip.get()
+            target_ip = self.server_ip.get()
             print(f"[CLIENT] Attempting connection to {target_ip}:{self.port}")
             print(f"[CLIENT] Local IP: {socket.gethostbyname(socket.gethostname())}")
             
             # Windows-specific TCP stack tuning
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            self.socket.connect((target_ip, self.port))
+            #self.socket.connect((target_ip, self.port))
+            self.socket.connect((self.server_ip.get(), self.port))
             
             print("[CLIENT] Connection established!")
             return True
