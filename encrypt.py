@@ -45,7 +45,7 @@ class EncryptionServer:
         # DH Key Exchange
         self.dh_parameters = dh.generate_parameters(
             generator=2, 
-            ey_size=2048, 
+            key_size=2048, 
             backend=default_backend()
         )
         self.private_key = self.dh_parameters.generate_private_key()
