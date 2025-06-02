@@ -286,11 +286,15 @@ class EncryptionServer:
     def recvall(self, sock, length):
         data = b''
         while len(data) < length:
-            packet = sock.recv(length - len(data))
-            if not packet:
-                return None
-            data += packet
-        return data
+            try:
+                packet = sock.recv(length - len(data))
+                if not packet:
+                    raise ConnectionError("Socket closed prematurely")
+                data += packet
+            except socket.timeout:
+                print("[ERROR] Timeout waiting for data")
+                break
+        return data if len(data) == length else None
 
     def log_message(self, message):
         self.log_text.insert(tk.END, message + "\n")

@@ -28,7 +28,7 @@ class EncryptionClient:
         self.shared_key = None
         
         # Network setup
-        self.server_ip = tk.StringVar(value="127.18.86.67")
+        self.server_ip = tk.StringVar(value="127.18.x.x")
         self.port = 5000
         self.socket = None
         self.connection_status = False
@@ -129,7 +129,7 @@ class EncryptionClient:
             print(f"[CLIENT] Attempting connection to {target_ip}:{self.port}")
             print(f"[CLIENT] Local IP: {socket.gethostbyname(socket.gethostname())}")
             
-            # Windows-specific TCP stack tuning
+            #TCP stack tuning
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             #self.socket.connect((target_ip, self.port))
             self.socket.connect((self.server_ip.get(), self.port))
@@ -309,14 +309,18 @@ class EncryptionClient:
         avg_enc = sum(recent_enc) / len(recent_enc)
         self.time_label.config(text=f"Encryption Time: {avg_enc:.2f} ms avg")
 
-    def recvall(self, length):
+    def recvall(self, sock, length):
         data = b''
         while len(data) < length:
-            packet = self.socket.recv(length - len(data))
-            if not packet:
-                return None
-            data += packet
-        return data
+            try:
+                packet = sock.recv(length - len(data))
+                if not packet:
+                    raise ConnectionError("Socket closed prematurely")
+                data += packet
+            except socket.timeout:
+                print("[ERROR] Timeout waiting for data")
+                break
+        return data if len(data) == length else None
 
     def disconnect(self):
         if self.socket:
