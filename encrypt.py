@@ -43,11 +43,7 @@ class EncryptionServer:
         self.packet_size = 1024
         
         # DH Key Exchange
-        self.dh_parameters = dh.generate_parameters(
-            generator=2, 
-            key_size=2048, 
-            backend=default_backend()
-        )
+        self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
         self.private_key = self.dh_parameters.generate_private_key()
         
         self.create_widgets()
@@ -138,13 +134,24 @@ class EncryptionServer:
     def accept_connections(self):
         while self.connection_status:
             try:
-                conn, addr = self.socket.accept()  # This can fail if socket is closed
-                self.log_message(f"Connection from: {addr}")
-                threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
+                conn, addr = self.socket.accept()  
+
+                try:
+                    if not all(c.isdigit() or c == '.' for c in addr[0]):
+                        self.log_message(f"Invalid IP format: {addr[0]}")
+                        conn.close()
+                        continue
+                        
+                    self.log_message(f"Connection from: {addr[0]}:{addr[1]}")
+                    threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
+                    
+                except Exception as e:
+                    self.log_message(f"Connection validation failed: {str(e)}")
+                    conn.close()
+                    
             except Exception as e:
-                if self.connection_status:  # Only log if we didn't intentionally close
-                    self.log_message(f"Accept failed: {str(e)}")
-                break
+                if self.connection_status:  # Only log if server is still running
+                    self.log_message(f"Accept error: {str(e)}")
 
     def handle_client(self, conn):
         try:

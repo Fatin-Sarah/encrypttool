@@ -121,40 +121,37 @@ class EncryptionClient:
 
     def connect(self):
         try:
-            # Simple direct connection
+            target_ip = self.server_ip.get().strip()
+            
+            # Basic IP validation
+            if not all(c.isdigit() or c == '.' for c in target_ip):
+                self.log_message("Invalid IP address format")
+                return False
+                
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.settimeout(5)
             
-            target_ip = "192.168.157.96"  # Directly use the IP from your screenshot
-            self.log_message(f"Connecting to {target_ip}:{self.port}")
-            
-            self.socket.connect((target_ip, self.port))
-
             try:
-                self.socket.send(b'\x00')  # Test byte
-            except:
-                self.log_message("Connection test failed")
-                self.socket.close()
-                return False
-            
-            # Verify server response
-            response = self.recvall(5)  
-            if response == b'READY':
-                self.log_message("Connected successfully!")
+                self.socket.connect((target_ip, self.port))
+                
+                # Connection test
+                self.socket.sendall(b'PING')
+                if self.recvall(4) != b'PONG':
+                    raise ConnectionError("Handshake failed")
+                    
                 self.connection_status = True
                 threading.Thread(target=self.perform_key_exchange, daemon=True).start()
                 return True
-            else:
-                self.log_message("Unexpected server response")
+                
+            except Exception as e:
+                self.log_message(f"Connection failed: {str(e)}")
+                self.socket.close()
                 return False
                 
         except Exception as e:
-            self.log_message(f"Connection error: {str(e)}")
+            self.log_message(f"Connection setup error: {str(e)}")
             return False
-        finally:
-            if not self.connection_status and hasattr(self, 'socket'):
-                self.socket.close()
-
+        
     def perform_key_exchange(self):
         if not self.socket:
             self.log_message("[ERROR] No active socket for key exchange")
