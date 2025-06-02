@@ -47,7 +47,7 @@ class EncryptionServer:
             generator=2, 
             ey_size=2048, 
             backend=default_backend()
-            )
+        )
         self.private_key = self.dh_parameters.generate_private_key()
         
         self.create_widgets()
