@@ -107,24 +107,19 @@ class EncryptionServer:
 
     def start_server(self):
         try:
+            # Clean up any existing socket
+            if hasattr(self, 'socket'):
+                self.socket.close()
+                time.sleep(1)  # Brief wait for socket release
+                
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            
-            # Bind to all interfaces
-            self.socket.bind(('0.0.0.0', self.port))  
-            self.socket.listen(1)
-            
-            # Verify binding worked
-            host = socket.gethostname()
-            ip = socket.gethostbyname(host)
-            self.log_message(f"Server listening on {ip}:{self.port}")
-            
-            self.connection_status = True
+            self.socket.bind(('0.0.0.0', self.port))  # Bind to all interfaces
+            self.socket.listen(5)
+            self.log_message(f"Server ready on port {self.port}")
             threading.Thread(target=self.accept_connections, daemon=True).start()
         except Exception as e:
-            self.log_message(f"Server failed to start: {str(e)}")
-            if hasattr(e, 'winerror'):
-                self.log_message(f"Windows Error: {e.winerror}")
+            self.log_message(f"Server error: {str(e)}")
 
     def accept_connections(self):
         try:
@@ -137,6 +132,7 @@ class EncryptionServer:
 
     def handle_client(self, conn):
         try:
+            conn.sendall(b'READY')
             conn.settimeout(10)  # Add timeout to prevent hanging
             addr = conn.getpeername()
             
@@ -190,8 +186,12 @@ class EncryptionServer:
             self.receive_data(conn)
             
         except Exception as e:
-            self.log_message(f"Key exchange failed: {str(e)}")
-            conn.close()
+            self.log_message(f"Client handling error: {str(e)}")
+        finally:
+            try:
+                conn.close()
+            except:
+                pass
 
     def receive_data(self, conn):
         try:

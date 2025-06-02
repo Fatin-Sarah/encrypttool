@@ -118,46 +118,32 @@ class EncryptionClient:
 
     def connect(self):
         try:
+            # Simple direct connection
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(5)  # 5 second timeout
+            self.socket.settimeout(5)
             
-            # Basic connectivity test
-            try:
-                target_ip = self.server_ip.get()
-                self.log_message(f"Connecting to {target_ip}:{self.port}")
-                
-                self.socket.connect((target_ip, self.port))
-                
-                # Test 1: Simple echo test
-                test_msg = b"CONN_TEST_123"
-                self.socket.sendall(test_msg)
-                response = self.recvall(len(test_msg))
-                
-                if response != test_msg:
-                    self.log_message("Basic test failed - no echo response")
-                    self.socket.close()
-                    return False
-                    
-                self.log_message("Basic connectivity verified!")
-                
-                # Proceed with key exchange
+            target_ip = "192.168.157.96"  # Directly use the IP from your screenshot
+            self.log_message(f"Connecting to {target_ip}:{self.port}")
+            
+            self.socket.connect((target_ip, self.port))
+            
+            # Verify server response
+            response = self.recvall(5)  # Wait for 'READY'
+            if response == b'READY':
+                self.log_message("Connected successfully!")
                 self.connection_status = True
-                self.connect_btn.config(text="Disconnect")
                 threading.Thread(target=self.perform_key_exchange, daemon=True).start()
                 return True
+            else:
+                self.log_message("Unexpected server response")
+                return False
                 
-            except socket.timeout:
-                self.log_message("Connection timeout - server not responding")
-            except ConnectionRefusedError:
-                self.log_message("Connection refused - check server is running")
-            except Exception as e:
-                self.log_message(f"Connection failed: {str(e)}")
-                
-            self.socket.close()
-            return False
         except Exception as e:
-            self.log_message(f"Connection setup failed: {str(e)}")
+            self.log_message(f"Connection error: {str(e)}")
             return False
+        finally:
+            if not self.connection_status and hasattr(self, 'socket'):
+                self.socket.close()
 
     def perform_key_exchange(self):
         try:
