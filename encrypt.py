@@ -143,13 +143,29 @@ class EncryptionServer:
             
             # Receive client's public key
             length_data = self.recvall(conn, 4)
+            if not length_data or len(length_data) != 4:
+                self.log_message("Invalid key length received")
+                conn.close()
+                return
+            
             key_length = struct.unpack('!I', length_data)[0]
             remote_public_key_bytes = self.recvall(conn, key_length)
+
+            if not remote_public_key_bytes:
+                self.log_message("No public key received from client")
+                conn.close()
+                return
             
-            remote_public_key = serialization.load_pem_public_key(
-                remote_public_key_bytes,
-                backend=default_backend()
-            )
+            try:
+                remote_public_key = serialization.load_pem_public_key(
+                    remote_public_key_bytes,
+                    backend=default_backend()
+                )
+                self.log_message("Successfully loaded client's public key")
+            except Exception as e:
+                self.log_message(f"Failed to load client public key: {str(e)}")
+                conn.close()
+                return
             
             # Generate shared key
             shared_secret = self.private_key.exchange(remote_public_key)
@@ -168,6 +184,7 @@ class EncryptionServer:
             
         except Exception as e:
             self.log_message(f"Key exchange failed: {str(e)}")
+            conn.close()
 
     def receive_data(self, conn):
         try:

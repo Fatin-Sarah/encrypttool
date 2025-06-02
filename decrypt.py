@@ -140,6 +140,14 @@ class EncryptionClient:
             self.connect_btn.config(text="Disconnect")
             self.log_message(f"Connected to {target_ip}:{self.port}")
             
+            # Test basic connectivity first ///
+            test_msg = b"CONN_TEST"
+            self.socket.sendall(test_msg)
+            response = self.recvall(len(test_msg))  # Should echo back
+            if response != test_msg:
+                self.log_message("[ERROR] Basic connectivity test failed")
+                return False
+            
             # Start key exchange in thread
             threading.Thread(target=self.perform_key_exchange, daemon=True).start()
             return True
