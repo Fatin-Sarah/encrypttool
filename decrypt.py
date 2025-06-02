@@ -164,7 +164,7 @@ class EncryptionClient:
             
             # Receive server's public key
             length_data = self.recvall(4)
-            if not length_data:
+            if not length_data or len(length_data) != 4:
                 self.log_message("[ERROR] No key length received")
                 return
                 
@@ -172,25 +172,33 @@ class EncryptionClient:
             self.log_message(f"[DEBUG] Expecting key of length: {key_length} bytes")
             
             remote_public_key_bytes = self.recvall(key_length)
-            if not remote_public_key_bytes:
+            if not remote_public_key_bytes or len(remote_public_key_bytes) != key_length:
                 self.log_message("[ERROR] Failed to receive public key")
                 return
                 
             #KEY VERIFICATION DEBUG
             self.log_message(f"[DEBUG] Received key (first 10 bytes): {remote_public_key_bytes[:10].hex()}...")
             
-            remote_public_key = serialization.load_pem_public_key(
-                remote_public_key_bytes,
-                backend=default_backend()
-            )
+            try:
+                remote_public_key = serialization.load_pem_public_key(
+                    remote_public_key_bytes,
+                    backend=default_backend()
+                )
+            except Exception as e:
+                self.log_message(f"[ERROR] Failed to load public key: {str(e)}")
+                return
             
             # Send our public key
             public_key = self.private_key.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
-            self.socket.sendall(struct.pack('!I', len(public_key)))
-            self.socket.sendall(public_key)
+            try:
+                self.socket.sendall(struct.pack('!I', len(public_key)))
+                self.socket.sendall(public_key)
+            except Exception as e:
+                self.log_message(f"[ERROR] Failed to send public key: {str(e)}")
+                return
             
             # Generate shared key
             shared_secret = self.private_key.exchange(remote_public_key)
