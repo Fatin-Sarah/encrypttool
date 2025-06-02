@@ -108,19 +108,23 @@ class EncryptionServer:
     def start_server(self):
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # Remove problematic socket option and use SO_REUSEADDR instead
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.bind(('0.0.0.0', self.port))
-            self.socket.listen(1)
-            self.connection_status = True
-            self.log_message(f"Server listening on port {self.port}")
             
+            # Bind to all interfaces
+            self.socket.bind(('0.0.0.0', self.port))  
+            self.socket.listen(1)
+            
+            # Verify binding worked
+            host = socket.gethostname()
+            ip = socket.gethostbyname(host)
+            self.log_message(f"Server listening on {ip}:{self.port}")
+            
+            self.connection_status = True
             threading.Thread(target=self.accept_connections, daemon=True).start()
         except Exception as e:
-            # Simplified error handling
             self.log_message(f"Server failed to start: {str(e)}")
             if hasattr(e, 'winerror'):
-                self.log_message(f"Windows Error Code: {e.winerror}")
+                self.log_message(f"Windows Error: {e.winerror}")
 
     def accept_connections(self):
         try:

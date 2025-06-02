@@ -118,52 +118,46 @@ class EncryptionClient:
 
     def connect(self):
         try:
-            if self.socket:
-                self.socket.close()
-            
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.settimeout(5)  # Essential for Windows
+            self.socket.settimeout(5)  # 5 second timeout
             
-            # Debug output
-            target_ip = self.server_ip.get()
-            print(f"[CLIENT] Attempting connection to {target_ip}:{self.port}")
-            print(f"[CLIENT] Local IP: {socket.gethostbyname(socket.gethostname())}")
-            
-            #TCP stack tuning
-            self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            #self.socket.connect((target_ip, self.port))
-            self.socket.connect((self.server_ip.get(), self.port))
-
-            #Connection Verification 
-            print("[DEBUG] TCP handshake completed")
-            self.connection_status = True
-            self.connect_btn.config(text="Disconnect")
-            self.log_message(f"Connected to {target_ip}:{self.port}")
-            
-            # Test basic connectivity first ///
-            test_msg = b"CONN_TEST"
-            self.socket.sendall(test_msg)
-            response = self.recvall(len(test_msg))  # Should echo back
-            if response != test_msg:
-                self.log_message("[ERROR] Basic connectivity test failed")
-                return False
-            
-            # Start key exchange in thread
-            threading.Thread(target=self.perform_key_exchange, daemon=True).start()
-            return True
-            
-        except socket.timeout:
-            self.log_message("[ERROR] Connection timeout - server not responding")
-        except ConnectionRefusedError:
-            self.log_message("[ERROR] Server refused connection (verify server is running)")
+            # Basic connectivity test
+            try:
+                target_ip = self.server_ip.get()
+                self.log_message(f"Connecting to {target_ip}:{self.port}")
+                
+                self.socket.connect((target_ip, self.port))
+                
+                # Test 1: Simple echo test
+                test_msg = b"CONN_TEST_123"
+                self.socket.sendall(test_msg)
+                response = self.recvall(len(test_msg))
+                
+                if response != test_msg:
+                    self.log_message("Basic test failed - no echo response")
+                    self.socket.close()
+                    return False
+                    
+                self.log_message("Basic connectivity verified!")
+                
+                # Proceed with key exchange
+                self.connection_status = True
+                self.connect_btn.config(text="Disconnect")
+                threading.Thread(target=self.perform_key_exchange, daemon=True).start()
+                return True
+                
+            except socket.timeout:
+                self.log_message("Connection timeout - server not responding")
+            except ConnectionRefusedError:
+                self.log_message("Connection refused - check server is running")
+            except Exception as e:
+                self.log_message(f"Connection failed: {str(e)}")
+                
+            self.socket.close()
+            return False
         except Exception as e:
-            #ERROR REPORTING
-            error_msg = f"[ERROR] Connection failed: {str(e)}"
-            if hasattr(e, 'winerror'):
-                import ctypes
-                error_msg += f"\nWindows API Error: {ctypes.FormatError(e.winerror)}"
-            self.log_message(error_msg)
-        return False
+            self.log_message(f"Connection setup failed: {str(e)}")
+            return False
 
     def perform_key_exchange(self):
         try:
