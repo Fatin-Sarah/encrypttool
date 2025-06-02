@@ -137,6 +137,9 @@ class EncryptionServer:
 
     def handle_client(self, conn):
         try:
+            conn.settimeout(10)  # Add timeout to prevent hanging
+            addr = conn.getpeername()
+            
             # Key exchange
             public_key = self.private_key.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
