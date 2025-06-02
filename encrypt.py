@@ -107,31 +107,46 @@ class EncryptionServer:
 
     def start_server(self):
         try:
-            # Clean up any existing socket
-            if hasattr(self, 'socket'):
-                self.socket.close()
-                time.sleep(1)  # Brief wait for socket release
-                
+            # Initialize socket first
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self.socket.bind(('0.0.0.0', self.port))  # Bind to all interfaces
-            self.socket.listen(5)
-            self.log_message(f"Server ready on port {self.port}")
-            threading.Thread(target=self.accept_connections, daemon=True).start()
+            
+            try:
+                self.socket.bind(('0.0.0.0', self.port))
+                self.socket.listen(5)
+                self.connection_status = True
+                self.log_message(f"Server successfully started on port {self.port}")
+                
+                # Start accept thread only if binding succeeded
+                threading.Thread(target=self.accept_connections, daemon=True).start()
+            except Exception as bind_error:
+                self.log_message(f"Binding failed: {str(bind_error)}")
+                self.socket.close()
+                self.socket = None  # Explicitly set to None
+                
         except Exception as e:
-            self.log_message(f"Server error: {str(e)}")
+            self.log_message(f"Server startup failed: {str(e)}")
+            if hasattr(self, 'socket') and self.socket:
+                self.socket.close()
+            self.socket = None
+            self.connection_status = False
 
     def accept_connections(self):
-        try:
-            while self.connection_status:
-                conn, addr = self.socket.accept()
+        while self.connection_status:
+            try:
+                conn, addr = self.socket.accept()  # This can fail if socket is closed
                 self.log_message(f"Connection from: {addr}")
-                self.handle_client(conn)
-        except Exception as e:
-            self.log_message(f"Connection error: {str(e)}")
+                threading.Thread(target=self.handle_client, args=(conn,), daemon=True).start()
+            except Exception as e:
+                if self.connection_status:  # Only log if we didn't intentionally close
+                    self.log_message(f"Accept failed: {str(e)}")
+                break
 
     def handle_client(self, conn):
         try:
+            if conn is None:
+                self.log_message("Received None connection")
+                return
             conn.sendall(b'READY')
             conn.settimeout(10)  # Add timeout to prevent hanging
             addr = conn.getpeername()
@@ -188,10 +203,11 @@ class EncryptionServer:
         except Exception as e:
             self.log_message(f"Client handling error: {str(e)}")
         finally:
-            try:
-                conn.close()
-            except:
-                pass
+            if conn:
+                try:
+                    conn.close()
+                except:
+                    pass
 
     def receive_data(self, conn):
         try:
