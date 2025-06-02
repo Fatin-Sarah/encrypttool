@@ -43,7 +43,11 @@ class EncryptionServer:
         self.packet_size = 1024
         
         # DH Key Exchange
-        self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+        self.dh_parameters = dh.generate_parameters(
+            generator=2, 
+            ey_size=2048, 
+            backend=default_backend()
+            )
         self.private_key = self.dh_parameters.generate_private_key()
         
         self.create_widgets()
@@ -144,14 +148,7 @@ class EncryptionServer:
 
     def handle_client(self, conn):
         try:
-            if conn is None:
-                self.log_message("Received None connection")
-                return
-            conn.sendall(b'READY')
-            conn.settimeout(10)  # Add timeout to prevent hanging
-            addr = conn.getpeername()
-            
-            # Key exchange
+            # Send public key
             public_key = self.private_key.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
@@ -161,29 +158,20 @@ class EncryptionServer:
             
             # Receive client's public key
             length_data = self.recvall(conn, 4)
-            if not length_data or len(length_data) != 4:
-                self.log_message("Invalid key length received")
-                conn.close()
-                return
-            
+            if not length_data:
+                raise ValueError("No key length received")
+                
             key_length = struct.unpack('!I', length_data)[0]
             remote_public_key_bytes = self.recvall(conn, key_length)
-
-            if not remote_public_key_bytes:
-                self.log_message("No public key received from client")
-                conn.close()
-                return
             
-            try:
-                remote_public_key = serialization.load_pem_public_key(
-                    remote_public_key_bytes,
-                    backend=default_backend()
-                )
-                self.log_message("Successfully loaded client's public key")
-            except Exception as e:
-                self.log_message(f"Failed to load client public key: {str(e)}")
-                conn.close()
-                return
+            if not remote_public_key_bytes:
+                raise ValueError("No public key received")
+                
+            # Load client's public key
+            remote_public_key = serialization.load_pem_public_key(
+                remote_public_key_bytes,
+                backend=default_backend()
+            )
             
             # Generate shared key
             shared_secret = self.private_key.exchange(remote_public_key)
@@ -196,18 +184,11 @@ class EncryptionServer:
             ).derive(shared_secret)
             
             self.log_message("Key exchange completed!")
-            
-            # Start receiving data
             self.receive_data(conn)
             
         except Exception as e:
-            self.log_message(f"Client handling error: {str(e)}")
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except:
-                    pass
+            self.log_message(f"Key exchange error: {str(e)}")
+            conn.close()
 
     def receive_data(self, conn):
         try:

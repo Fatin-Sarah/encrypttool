@@ -43,7 +43,10 @@ class EncryptionClient:
         self.packet_size = 1024
         
         # DH Key Exchange
-        self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+        self.dh_parameters = dh.generate_parameters(
+            generator=2, key_size=2048, 
+            backend=default_backend()
+            )
         self.private_key = self.dh_parameters.generate_private_key()
         
         self.create_widgets()
@@ -126,9 +129,16 @@ class EncryptionClient:
             self.log_message(f"Connecting to {target_ip}:{self.port}")
             
             self.socket.connect((target_ip, self.port))
+
+            try:
+                self.socket.send(b'\x00')  # Test byte
+            except:
+                self.log_message("Connection test failed")
+                self.socket.close()
+                return False
             
             # Verify server response
-            response = self.recvall(5)  # Wait for 'READY'
+            response = self.recvall(5)  
             if response == b'READY':
                 self.log_message("Connected successfully!")
                 self.connection_status = True
@@ -146,9 +156,13 @@ class EncryptionClient:
                 self.socket.close()
 
     def perform_key_exchange(self):
+        if not self.socket:
+            self.log_message("[ERROR] No active socket for key exchange")
+            return
+        
         try:
             #KEY EXCHANGE DEBUG
-            self.log_message("[DEBUG] Starting key exchange...")
+            self.log_message("[KEY] Starting key exchange...")
             
             # Receive server's public key
             length_data = self.recvall(4)
@@ -157,7 +171,7 @@ class EncryptionClient:
                 return
                 
             key_length = struct.unpack('!I', length_data)[0]
-            self.log_message(f"[DEBUG] Expecting key of length: {key_length} bytes")
+            self.log_message(f"[KEY] Expecting key of length: {key_length} bytes")
             
             remote_public_key_bytes = self.recvall(key_length)
             if not remote_public_key_bytes:
@@ -167,26 +181,19 @@ class EncryptionClient:
             #KEY VERIFICATION DEBUG
             self.log_message(f"[DEBUG] Received key (first 10 bytes): {remote_public_key_bytes[:10].hex()}...")
             
-            try:
-                remote_public_key = serialization.load_pem_public_key(
-                    remote_public_key_bytes,
-                    backend=default_backend()
-                )
-            except Exception as e:
-                self.log_message(f"[ERROR] Failed to load public key: {str(e)}")
-                return
+            remote_public_key = serialization.load_pem_public_key(
+                remote_public_key_bytes,
+                backend=default_backend()
+            )
             
             # Send our public key
             public_key = self.private_key.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
-            try:
-                self.socket.sendall(struct.pack('!I', len(public_key)))
-                self.socket.sendall(public_key)
-            except Exception as e:
-                self.log_message(f"[ERROR] Failed to send public key: {str(e)}")
-                return
+
+            self.socket.sendall(struct.pack('!I', len(public_key)))
+            self.socket.sendall(public_key)
             
             # Generate shared key
             shared_secret = self.private_key.exchange(remote_public_key)
@@ -203,7 +210,12 @@ class EncryptionClient:
             self.log_message("Key exchange completed!")
             
         except Exception as e:
-            self.log_message(f"[CRITICAL] Key exchange failed: {str(e)}")
+            self.log_message(f"Key exchange failed: {str(e)}")
+            # Close connection on failure
+            if hasattr(self, 'socket') and self.socket:
+                self.socket.close()
+            self.connection_status = False
+            self.connect_btn.config(text="Connect")
 
     def send_data(self, data):
         try:
