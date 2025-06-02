@@ -164,7 +164,7 @@ class EncryptionClient:
             
             # Receive server's public key
             length_data = self.recvall(4)
-            if not length_data or len(length_data) != 4:
+            if not length_data:
                 self.log_message("[ERROR] No key length received")
                 return
                 
@@ -172,7 +172,7 @@ class EncryptionClient:
             self.log_message(f"[DEBUG] Expecting key of length: {key_length} bytes")
             
             remote_public_key_bytes = self.recvall(key_length)
-            if not remote_public_key_bytes or len(remote_public_key_bytes) != key_length:
+            if not remote_public_key_bytes:
                 self.log_message("[ERROR] Failed to receive public key")
                 return
                 
@@ -317,18 +317,14 @@ class EncryptionClient:
         avg_enc = sum(recent_enc) / len(recent_enc)
         self.time_label.config(text=f"Encryption Time: {avg_enc:.2f} ms avg")
 
-    def recvall(self, sock, length):
+    def recvall(self, length):
         data = b''
         while len(data) < length:
-            try:
-                packet = sock.recv(length - len(data))
-                if not packet:
-                    raise ConnectionError("Socket closed prematurely")
-                data += packet
-            except socket.timeout:
-                print("[ERROR] Timeout waiting for data")
-                break
-        return data if len(data) == length else None
+            packet = self.socket.recv(length - len(data))
+            if not packet:
+                return None
+            data += packet
+        return data
 
     def disconnect(self):
         if self.socket:
