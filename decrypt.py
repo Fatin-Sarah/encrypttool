@@ -133,28 +133,34 @@ class EncryptionClient:
             
             try:
                 self.socket.connect((target_ip, self.port))
+                self.log_message(f"Socket connected to {target_ip}. Initiating key exchange...")
                 
-                # Connection test
-                self.socket.sendall(b'PING')
-                if self.recvall(4) != b'PONG':
-                    raise ConnectionError("Handshake failed")
-                    
-                self.connection_status = True
                 threading.Thread(target=self.perform_key_exchange, daemon=True).start()
-                return True
-                
+                return True 
+                    
+            except socket.timeout:
+                self.log_message(f"Connection to {target_ip} timed out.")
+                if self.socket: self.socket.close()
+                self.socket = None 
+                return False 
+            
             except Exception as e:
                 self.log_message(f"Connection failed: {str(e)}")
-                self.socket.close()
-                return False
+                if self.socket: self.socket.close()
+                self.socket = None 
+                return False 
                 
-        except Exception as e:
+        except Exception as e: 
             self.log_message(f"Connection setup error: {str(e)}")
+            if hasattr(self, 'socket') and self.socket: self.socket.close()
+            self.socket = None
             return False
         
     def perform_key_exchange(self):
         if not self.socket:
             self.log_message("[ERROR] No active socket for key exchange")
+            self.connection_status = False
+            self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
             return
         
         try:
@@ -205,15 +211,16 @@ class EncryptionClient:
             #KEY VERIFICATION
             self.log_message(f"[DEBUG] Shared key established: {self.shared_key.hex()[:10]}...")
             self.log_message("Key exchange completed!")
-            
+            self.connection_status = True  
+            self.root.after(0, lambda: self.connect_btn.config(text="Disconnect"))
+
         except Exception as e:
             self.log_message(f"Key exchange failed: {str(e)}")
-            # Close connection on failure
             if hasattr(self, 'socket') and self.socket:
                 self.socket.close()
+                self.socket = None
             self.connection_status = False
-            self.connect_btn.config(text="Connect")
-
+            self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
     def send_data(self, data):
         try:
             packets = [data[i:i+self.packet_size] for i in range(0, len(data), self.packet_size)]
