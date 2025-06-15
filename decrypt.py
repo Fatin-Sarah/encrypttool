@@ -43,11 +43,9 @@ class EncryptionClient:
         self.packet_size = 1024
         
         # DH Key Exchange
-        self.dh_parameters = dh.generate_parameters(
-            generator=2, key_size=2048, 
-            backend=default_backend()
-            )
-        self.private_key = self.dh_parameters.generate_private_key()
+        #self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
+        #self.private_key = self.dh_parameters.generate_private_key()
+        self.private_key = None
         
         self.create_widgets()
         
@@ -159,14 +157,25 @@ class EncryptionClient:
     def perform_key_exchange(self):
         if not self.socket:
             self.log_message("[ERROR] No active socket for key exchange")
-            self.connection_status = False
-            self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
             return
         
         try:
             #KEY EXCHANGE DEBUG
             self.log_message("[KEY] Starting key exchange...")
             
+            param_len_data = self.recvall(4)
+            if not param_len_data:
+                raise ValueError("Did not receive parameter length from server.")
+            
+            param_len = struct.unpack('!I', param_len_data)[0]
+            param_bytes = self.recvall(param_len)
+            if not param_bytes:
+                raise ValueError("Did not receive parameters from server.")
+            
+            received_parameters = serialization.load_pem_parameters(param_bytes, backend=default_backend())
+            self.private_key = received_parameters.generate_private_key()
+            self.log_message("[KEY] Received server parameters and generated new private key.")
+
             # Receive server's public key
             length_data = self.recvall(4)
             if not length_data:
@@ -181,6 +190,11 @@ class EncryptionClient:
                 self.log_message("[ERROR] Failed to receive public key")
                 return
                 
+            remote_public_key = serialization.load_pem_public_key(
+                remote_public_key_bytes,
+                backend=default_backend()
+            )
+
             #KEY VERIFICATION DEBUG
             self.log_message(f"[DEBUG] Received key (first 10 bytes): {remote_public_key_bytes[:10].hex()}...")
             
@@ -221,6 +235,7 @@ class EncryptionClient:
                 self.socket = None
             self.connection_status = False
             self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
+            
     def send_data(self, data):
         try:
             packets = [data[i:i+self.packet_size] for i in range(0, len(data), self.packet_size)]

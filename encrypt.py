@@ -44,7 +44,7 @@ class EncryptionServer:
         
         # DH Key Exchange
         self.dh_parameters = dh.generate_parameters(generator=2, key_size=2048, backend=default_backend())
-        self.private_key = self.dh_parameters.generate_private_key()
+        self.private_key = self.dh_parameters.generate_private_key()    
         
         self.create_widgets()
         self.start_server()
@@ -156,6 +156,14 @@ class EncryptionServer:
     def handle_client(self, conn):
         try:
             # Send public key
+            param_bytes = self.dh_parameters.parameter_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.ParameterFormat.PKCS3
+            )
+            conn.sendall(struct.pack('!I', len(param_bytes)))
+            conn.sendall(param_bytes)
+            self.log_message("Sent DH parameters to the client.")
+
             public_key = self.private_key.public_key().public_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
