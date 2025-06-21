@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import socket
 import threading
+import json
 import queue
 import struct
 import os
@@ -19,12 +20,16 @@ from ascon import ascon_encrypt, ascon_decrypt
 class EncryptionServer:
     def __init__(self, root):
         self.root = root
-        self.root.title("VM Encryption Server")
+        self.root.title("Encryption Server")
         self.root.geometry("900x700")
         
+        # Create a directory for received files
+        self.downloads_dir = "Downloads"
+        os.makedirs(self.downloads_dir, exist_ok=True)
+        
         # Encryption settings
-        self.encryption_methods = ["AES128", "ASCON", "ChaCha20"]
-        self.selected_method = tk.StringVar(value="AES128")
+        self.encryption_methods = ["No Encryption", "AES128", "ASCON", "ChaCha20"]
+        self.selected_method = tk.StringVar(value=" ")
         self.shared_key = None
         
         # Network setup
@@ -104,6 +109,14 @@ class EncryptionServer:
         # Configure grid weights
         info_frame.columnconfigure(1, weight=1)
         enc_frame.columnconfigure(1, weight=1)
+
+    def reset_statistics(self):
+        self.received_bytes = 0
+        self.decryption_times.clear()
+        self.memory_usage.clear()
+        self.latency_history.clear()
+        #self.log_message("--- Statistics Reset Manually ---")
+        self.update_stats()
 
     def start_server(self):
         try:
@@ -267,11 +280,14 @@ class EncryptionServer:
             self.packet_queue.task_done()
 
     def decrypt(self, encrypted_data):
+        method = self.selected_method.get()
+
+        if method == "No Encryption":
+            return encrypted_data
+        
         if not self.shared_key:
             raise ValueError("No shared key established")
             
-        method = self.selected_method.get()
-        
         if method == "AES128":
             iv = encrypted_data[:16]
             ciphertext = encrypted_data[16:]
@@ -304,20 +320,26 @@ class EncryptionServer:
         # Bandwidth
         self.bandwidth_label.config(text=f"Received: {self.received_bytes} bytes")
         
-        # Memory (average of last 5)
-        recent_memory = self.memory_usage[-5:] if self.memory_usage else [0]
-        avg_memory = sum(recent_memory) / len(recent_memory)
-        self.memory_label.config(text=f"Memory Usage: {avg_memory:.2f} MB")
+        # Memory 
+        if self.memory_usage:
+            avg_memory = sum(self.memory_usage) / len(self.memory_usage)
+            self.memory_label.config(text=f"Memory Usage: {avg_memory:.2f} MB")
+        else:
+            self.memory_label.config(text="Memory Usage: 0.00 MB")
         
-        # Decryption times (average of last 10)
-        recent_dec = self.decryption_times[-10:] if self.decryption_times else [0]
-        avg_dec = sum(recent_dec) / len(recent_dec)
-        self.time_label.config(text=f"Decryption Time: {avg_dec:.2f} ms avg")
+        # Decryption times 
+        if self.decryption_times:
+            avg_dec = sum(self.decryption_times) / len(self.decryption_times)
+            self.time_label.config(text=f"Decryption Time: {avg_dec:.2f} ms avg")
+        else:
+            self.time_label.config(text="Decryption Time: 0.00 ms avg")
         
-        # Latency (average of last 10)
-        recent_lat = self.latency_history[-10:] if self.latency_history else [0]
-        avg_lat = sum(recent_lat) / len(recent_lat)
-        self.latency_label.config(text=f"Network Latency: {avg_lat:.2f} ms avg")
+        # Latency 
+        if self.latency_history:
+            avg_lat = sum(self.latency_history) / len(self.latency_history)
+            self.latency_label.config(text=f"Network Latency: {avg_lat:.2f} ms avg")
+        else:
+            self.latency_label.config(text="Network Latency: 0.00 ms avg")
 
     def recvall(self, sock, length):
         data = b''

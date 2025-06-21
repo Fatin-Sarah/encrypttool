@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import socket
 import threading
+import json
 import queue
 import struct
 import os
@@ -19,16 +20,17 @@ from ascon import ascon_encrypt, ascon_decrypt
 class EncryptionClient:
     def __init__(self, root):
         self.root = root
-        self.root.title("VM Encryption Client")
+        self.root.title("Encryption Client")
         self.root.geometry("900x700")
         
         # Encryption settings
-        self.encryption_methods = ["AES128", "ASCON", "ChaCha20"]
-        self.selected_method = tk.StringVar(value="AES128")
+        self.encryption_methods = ["No Encryption", "AES128", "ASCON", "ChaCha20"]
+        self.selected_method = tk.StringVar(value="No Encryption")
+        self.selected_method = tk.StringVar(value=" ")
         self.shared_key = None
         
         # Network setup
-        self.server_ip = tk.StringVar(value="127.18.x.x")
+        self.server_ip = tk.StringVar(value=" ")
         self.port = 5000
         self.socket = None
         self.connection_status = False
@@ -110,6 +112,13 @@ class EncryptionClient:
         # Configure grid weights
         conn_frame.columnconfigure(1, weight=1)
         enc_frame.columnconfigure(1, weight=1)
+
+    def reset_statistics(self):
+        self.sent_bytes = 0
+        self.encryption_times.clear()
+        self.memory_usage.clear()
+        #self.log_message("--- Statistics Reset ---")
+        self.update_stats()
 
     def toggle_connection(self):
         if self.connection_status:
@@ -236,38 +245,39 @@ class EncryptionClient:
             self.connection_status = False
             self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
             
-    def send_data(self, data):
+    def _start_transfer(self, header, data):
+        if not self.connection_status:
+            self.log_message("Cannot send data: Not connected.")
+            return
         try:
+            header_bytes = json.dumps(header).encode('utf-8')
+            self.socket.sendall(struct.pack('!I', len(header_bytes)))
+            self.socket.sendall(header_bytes)
+
             packets = [data[i:i+self.packet_size] for i in range(0, len(data), self.packet_size)]
-            
             for packet in packets:
-                # Encrypt the packet
                 start_time = timeit.default_timer()
                 encrypted_packet = self.encrypt(packet)
                 encryption_time = (timeit.default_timer() - start_time) * 1000
                 self.encryption_times.append(encryption_time)
-                
-                # Add timestamp and length header
+
                 timestamp = struct.pack('!d', timeit.default_timer())
                 packet_to_send = timestamp + struct.pack('!I', len(encrypted_packet)) + encrypted_packet
-                
-                # Send the packet
                 self.socket.sendall(packet_to_send)
                 self.sent_bytes += len(packet_to_send)
-                
-                # Update stats
                 self.update_stats()
-                
-            self.log_message("Data sent successfully")
-            
+            self.log_message(f"Transfer of '{header.get('filename', 'text message')}' completed.")
         except Exception as e:
             self.log_message(f"Send error: {str(e)}")
 
     def encrypt(self, data):
+        method = self.selected_method.get()
+        if method == "No Encryption":
+            return data
+        
         if not self.shared_key:
             raise ValueError("No shared key established")
             
-        method = self.selected_method.get()
         
         if method == "AES128":
             iv = os.urandom(16)
@@ -327,14 +337,18 @@ class EncryptionClient:
         self.bandwidth_label.config(text=f"Sent: {self.sent_bytes} bytes")
         
         # Memory (average of last 5)
-        recent_memory = self.memory_usage[-5:] if self.memory_usage else [0]
-        avg_memory = sum(recent_memory) / len(recent_memory)
-        self.memory_label.config(text=f"Memory Usage: {avg_memory:.2f} MB")
+        if self.memory_usage:
+            avg_memory = sum(self.memory_usage) / len(self.memory_usage)
+            self.memory_label.config(text=f"Memory Usage: {avg_memory:.2f} MB")
+        else:
+            self.memory_label.config(text="Memory Usage: 0.00 MB")
         
         # Encryption times (average of last 10)
-        recent_enc = self.encryption_times[-10:] if self.encryption_times else [0]
-        avg_enc = sum(recent_enc) / len(recent_enc)
-        self.time_label.config(text=f"Encryption Time: {avg_enc:.2f} ms avg")
+        if self.encryption_times:
+            avg_enc = sum(self.encryption_times) / len(self.encryption_times)
+            self.time_label.config(text=f"Encryption Time: {avg_enc:.2f} ms avg")
+        else:
+             self.time_label.config(text="Encryption Time: 0.00 ms avg")
 
     def recvall(self, length):
         data = b''
