@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import socket
 import threading
-import json
 import queue
 import struct
 import os
@@ -114,10 +113,12 @@ class EncryptionClient:
         enc_frame.columnconfigure(1, weight=1)
 
     def reset_statistics(self):
+        """Resets the statistics for a new transfer."""
         self.sent_bytes = 0
         self.encryption_times.clear()
         self.memory_usage.clear()
-        #self.log_message("--- Statistics Reset ---")
+        self.log_message("--- Statistics Reset ---")
+        # Update the GUI to show the reset values immediately
         self.update_stats()
 
     def toggle_connection(self):
@@ -246,28 +247,29 @@ class EncryptionClient:
             self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
             
     def send_data(self, data):
-        if not self.connection_status:
-            self.log_message("Cannot send data: Not connected.")
-            return
         try:
             packets = [data[i:i+self.packet_size] for i in range(0, len(data), self.packet_size)]
-
+            
             for packet in packets:
+                # Encrypt the packet
                 start_time = timeit.default_timer()
                 encrypted_packet = self.encrypt(packet)
                 encryption_time = (timeit.default_timer() - start_time) * 1000
                 self.encryption_times.append(encryption_time)
-
+                
+                # Add timestamp and length header
                 timestamp = struct.pack('!d', timeit.default_timer())
                 packet_to_send = timestamp + struct.pack('!I', len(encrypted_packet)) + encrypted_packet
-
+                
+                # Send the packet
                 self.socket.sendall(packet_to_send)
                 self.sent_bytes += len(packet_to_send)
-
+                
+                # Update stats
                 self.update_stats()
-
+                
             self.log_message("Data sent successfully")
-
+            
         except Exception as e:
             self.log_message(f"Send error: {str(e)}")
 
@@ -338,18 +340,14 @@ class EncryptionClient:
         self.bandwidth_label.config(text=f"Sent: {self.sent_bytes} bytes")
         
         # Memory (average of last 5)
-        if self.memory_usage:
-            avg_memory = sum(self.memory_usage) / len(self.memory_usage)
-            self.memory_label.config(text=f"Memory Usage: {avg_memory:.2f} MB")
-        else:
-            self.memory_label.config(text="Memory Usage: 0.00 MB")
+        recent_memory = self.memory_usage[-5:] if self.memory_usage else [0]
+        avg_memory = sum(recent_memory) / len(recent_memory)
+        self.memory_label.config(text=f"Memory Usage: {avg_memory:.2f} MB")
         
         # Encryption times (average of last 10)
-        if self.encryption_times:
-            avg_enc = sum(self.encryption_times) / len(self.encryption_times)
-            self.time_label.config(text=f"Encryption Time: {avg_enc:.2f} ms avg")
-        else:
-             self.time_label.config(text="Encryption Time: 0.00 ms avg")
+        recent_enc = self.encryption_times[-10:] if self.encryption_times else [0]
+        avg_enc = sum(recent_enc) / len(recent_enc)
+        self.time_label.config(text=f"Encryption Time: {avg_enc:.2f} ms avg")
 
     def recvall(self, length):
         data = b''
