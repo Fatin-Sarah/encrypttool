@@ -245,16 +245,13 @@ class EncryptionClient:
             self.connection_status = False
             self.root.after(0, lambda: self.connect_btn.config(text="Connect"))
             
-    def _start_transfer(self, header, data):
+    def send_data(self, data):
         if not self.connection_status:
             self.log_message("Cannot send data: Not connected.")
             return
         try:
-            header_bytes = json.dumps(header).encode('utf-8')
-            self.socket.sendall(struct.pack('!I', len(header_bytes)))
-            self.socket.sendall(header_bytes)
-
             packets = [data[i:i+self.packet_size] for i in range(0, len(data), self.packet_size)]
+
             for packet in packets:
                 start_time = timeit.default_timer()
                 encrypted_packet = self.encrypt(packet)
@@ -263,10 +260,14 @@ class EncryptionClient:
 
                 timestamp = struct.pack('!d', timeit.default_timer())
                 packet_to_send = timestamp + struct.pack('!I', len(encrypted_packet)) + encrypted_packet
+
                 self.socket.sendall(packet_to_send)
                 self.sent_bytes += len(packet_to_send)
+
                 self.update_stats()
-            self.log_message(f"Transfer of '{header.get('filename', 'text message')}' completed.")
+
+            self.log_message("Data sent successfully")
+
         except Exception as e:
             self.log_message(f"Send error: {str(e)}")
 
